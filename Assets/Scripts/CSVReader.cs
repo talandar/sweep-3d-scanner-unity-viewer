@@ -17,9 +17,14 @@ public class CSVReader
 
     public static List<Vector4> ReadPoints(string file)
     {
+        string data = System.IO.File.ReadAllText(file);
+        return ReadPointsFromString(data);
+    }
+
+    public static List<Vector4> ReadPointsFromString(string data)
+    {
         try
         {
-            string data = System.IO.File.ReadAllText(file);
             string[] lines = Regex.Split(data, LINE_SPLIT_RE);
 
             int numPoints = lines.Length - 1;
