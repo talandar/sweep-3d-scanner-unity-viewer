@@ -30,7 +30,7 @@ public class SteamVR_Teleporter : MonoBehaviour
 			trackedController = gameObject.AddComponent<SteamVR_TrackedController>();
 		}
 
-		trackedController.TriggerClicked += new ClickedEventHandler(DoClick);
+		trackedController.Gripped += new ClickedEventHandler(DoClick);
 
 		if (teleportType == TeleportType.TeleportTypeUseTerrain)
 		{

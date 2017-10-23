@@ -6,7 +6,7 @@ namespace ListView
 {
     public class WebList : ListViewController<JSONItemData, JSONItem>
     {
-        public string URLFormatString = "http://localhost:8080/file_manager/request_scan_files";
+        private string URLFormatString;
         public string defaultTemplate = "JSONItem";
         public int batchSize = 15;
 
@@ -17,9 +17,11 @@ namespace ListView
         bool m_Loading;
         JSONItemData[] m_Cleanup;
 
-        protected override void Setup()
+        public void Setup(string locationRoot)
         {
-            base.Setup();
+            m_Cleanup = this.data;
+            this.data = null;
+            URLFormatString = locationRoot+"/file_manager/request_scan_files";
             StartCoroutine(GetBatch(0, batchSize * 3, data => { this.data = data; }));
         }
 

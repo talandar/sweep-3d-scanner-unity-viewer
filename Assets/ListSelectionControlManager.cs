@@ -1,4 +1,5 @@
-﻿using System.Collections;
+﻿using ListView;
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
@@ -8,12 +9,16 @@ public class ListSelectionControlManager : MonoBehaviour {
     private bool choosing = true;
     private bool downloading = false;
     private bool updatedData = false;
+    private bool viewing = false;
 
-    private bool wasPressed = false;
+    private string webRootLocation;
+
+    private bool triggerPressed = false;
 
     public GameObject listView;
     public GameObject textView;
     public SteamVR_TrackedObject controllerRightObject;
+    public GameObject pointCloudHolder;
 
     private GameObject selectedListObj = null;
     private SteamVR_TrackedController controller;
@@ -39,14 +44,21 @@ public class ListSelectionControlManager : MonoBehaviour {
 
 
 
-    public string WEB_DL_LOCATION = "http://localhost:8080/file_manager/download_file/csv/";
+    private string WEB_DL_LOCATION;
 
     // Use this for initialization
     void Start () {
         pointer = controllerRightObject.GetComponent<SteamVR_LaserPointer>();
         pointer.PointerIn += PointerInDelegate;
         pointer.PointerOut += PointerOutDelegate;
+        controller = pointer.GetComponent<SteamVR_TrackedController>();
+        controller.TriggerClicked += TriggerDelegate;
+        controller.MenuButtonClicked += MenuButtonDelegate;
         infoTextMesh = textView.GetComponent<TextMesh>();
+        webRootLocation = System.IO.File.ReadAllText("config.cfg");
+        WebList webList = listView.GetComponent<WebList>();
+        webList.Setup(webRootLocation);
+        WEB_DL_LOCATION = webRootLocation + "/file_manager/download_file/csv/";
 	}
 
     // Update is called once per frame
@@ -54,8 +66,7 @@ public class ListSelectionControlManager : MonoBehaviour {
     {
         if (choosing)
         {
-            controller = pointer.GetComponent<SteamVR_TrackedController>();
-            if (controller.triggerPressed && !wasPressed)
+            if (triggerPressed)
             {
                 if (selectedListObj != null)
                 {
@@ -63,14 +74,13 @@ public class ListSelectionControlManager : MonoBehaviour {
                     ListView.JSONItem selectedObjectJson = selectedListObj.GetComponent<ListView.JSONItem>();
                     string fileToGet = selectedObjectJson.data.text;
                     print("Selected: " + fileToGet);
+                    downloading = true;
                     StartCoroutine(DownloadFile(fileToGet, data => { this.pointData = data; }));
                     choosing = false;
-                    downloading = true;
                     listView.SetActive(false);
                     infoTextMesh.text = "DOWNLOADING...";
                 }
             }
-            wasPressed = controller.triggerPressed;
         }else if (downloading)
         {
             infoTextMesh.text = "DOWNLOADING..." + 100.0f*progress+"%";
@@ -80,7 +90,34 @@ public class ListSelectionControlManager : MonoBehaviour {
             StartCoroutine(ChangeDisplay());
             //ChangeDisplay();
             updatedData = false;
+            viewing = true;
+        } else if (viewing)
+        {
+            //controls while viewing:
+            //trigger: move in direction controller is pointing, flying
+            //pad click: move in direction controller is pointing, relative to clicked direction (left side strafes left).  do not adjust Y
+            //grip: reset to default.
+            if (controller.triggerPressed)
+            {
+                Vector3 moveVector = controller.transform.forward;
+                moveVector = moveVector * -0.03f;
+                pointCloudHolder.transform.Translate(moveVector);
+            }
+            else if (controller.padPressed)
+            {
+                Vector3 moveVector = controller.transform.forward;
+                moveVector.y = 0;
+                moveVector.Normalize();
+                moveVector = moveVector * -0.03f;
+                pointCloudHolder.transform.Translate(moveVector);
+            }
+            else if (controller.gripped)
+            {
+                pointCloudHolder.transform.localPosition = Vector3.zero;
+            }
+            
         }
+        triggerPressed = false;
 	}
 
     private void PointerInDelegate(object sender, PointerEventArgs e)
@@ -91,6 +128,32 @@ public class ListSelectionControlManager : MonoBehaviour {
     private void PointerOutDelegate(object sender, PointerEventArgs e)
     {
         selectedListObj = null;
+    }
+
+    private void MenuButtonDelegate(object sender, ClickedEventArgs e)
+    {
+        choosing = true;
+        listView.SetActive(true);
+        infoTextMesh.text = "Existing Scans";
+        downloading = false;
+        updatedData = false;
+        viewing = false;
+        pointCloudHolder.transform.localPosition = Vector3.zero;
+        foreach (Transform child in pointCloudHolder.transform)
+        {
+            if (child.gameObject.name.StartsWith("Cloud"))
+            {
+                GameObject.Destroy(child.gameObject);
+            }
+        }
+        WebList webList = listView.GetComponent<WebList>();
+        
+        webList.Setup(webRootLocation);
+    }
+
+    private void TriggerDelegate(object sender, ClickedEventArgs e)
+    {
+        triggerPressed = true;
     }
 
     delegate void DataResult(List<Vector4> data);
@@ -110,9 +173,12 @@ public class ListSelectionControlManager : MonoBehaviour {
         progress = 1.0f;
         string text = www.text;
         m_WebLock = false;
-        downloading = false;
-        updatedData = true;
-        result(CSVReader.ReadPointsFromString(text));
+        if (downloading)
+        {
+            updatedData = true;
+            result(CSVReader.ReadPointsFromString(text));
+            downloading = false;
+        }
     }
 
     IEnumerator ChangeDisplay()
@@ -153,15 +219,16 @@ public class ListSelectionControlManager : MonoBehaviour {
             }
             // Create the point cloud using the subset of data
             GameObject obj = new GameObject("Cloud "+cloudNumber);
-            obj.transform.SetParent(transform, false);
+            obj.transform.SetParent(pointCloudHolder.transform, false);
             obj.AddComponent<PointCloud>().CreateMesh(positions, normalizedSignalStrength);
             obj.GetComponent<MeshRenderer>().material = pointCloudMaterial;
             pointClouds[cloudNumber] = obj;
             cloudNumber++;
         }
+
         foreach(GameObject cloud in pointClouds)
         {
-            cloud.transform.Translate(new Vector3(0, -minY, 0));
+            cloud.transform.Translate(new Vector3(0, 0.4318f, 0));
         }
         yield break;
     }
