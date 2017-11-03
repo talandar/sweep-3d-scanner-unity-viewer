@@ -1,6 +1,7 @@
 ﻿using System;
 using UnityEngine;
 using System.Collections;
+using System.IO;
 
 namespace ListView
 {
@@ -21,8 +22,16 @@ namespace ListView
         {
             m_Cleanup = this.data;
             this.data = null;
-            URLFormatString = locationRoot+"/file_manager/request_scan_files";
+            URLFormatString = locationRoot;
             StartCoroutine(GetBatch(0, batchSize * 3, data => { this.data = data; }));
+        }
+
+        public void SetupFolder(string locationRoot)
+        {
+            m_Cleanup = this.data;
+            this.data = null;
+            URLFormatString = locationRoot;
+            StartCoroutine(GetFolderBatch(0, batchSize * 3, data => { this.data = data; }));
         }
 
         IEnumerator GetBatch(int offset, int range, WebResult result)
@@ -43,6 +52,25 @@ namespace ListView
                 print(files.list[i].ToString());
                 items[i] = new JSONItemData {template = defaultTemplate};
                 items[i].text = files.list[i].ToString().Replace("\"","");
+            }
+            result(items);
+            m_WebLock = false;
+            m_Loading = false;
+        }
+
+        IEnumerator GetFolderBatch(int offset, int range, WebResult result)
+        {
+            if (m_WebLock)
+                yield break;
+            m_WebLock = true;
+            DirectoryInfo directory = new System.IO.DirectoryInfo(URLFormatString);
+            FileInfo[] files = directory.GetFiles();
+            JSONItemData[] items = new JSONItemData[files.Length];
+            for (int i = 0; i < files.Length; i++)
+            {
+                print(files[i].ToString());
+                items[i] = new JSONItemData { template = defaultTemplate };
+                items[i].text = files[i].Name;
             }
             result(items);
             m_WebLock = false;

@@ -11,7 +11,8 @@ public class ListSelectionControlManager : MonoBehaviour {
     private bool updatedData = false;
     private bool viewing = false;
 
-    private string webRootLocation;
+    private string listLocation;
+    private bool useFolder;
 
     private bool triggerPressed = false;
 
@@ -47,7 +48,8 @@ public class ListSelectionControlManager : MonoBehaviour {
     private string WEB_DL_LOCATION;
 
     // Use this for initialization
-    void Start () {
+    void Start()
+    {
         pointer = controllerRightObject.GetComponent<SteamVR_LaserPointer>();
         pointer.PointerIn += PointerInDelegate;
         pointer.PointerOut += PointerOutDelegate;
@@ -55,10 +57,31 @@ public class ListSelectionControlManager : MonoBehaviour {
         controller.TriggerClicked += TriggerDelegate;
         controller.MenuButtonClicked += MenuButtonDelegate;
         infoTextMesh = textView.GetComponent<TextMesh>();
-        webRootLocation = System.IO.File.ReadAllText("config.cfg");
-        WebList webList = listView.GetComponent<WebList>();
-        webList.Setup(webRootLocation);
-        WEB_DL_LOCATION = webRootLocation + "/file_manager/download_file/";
+        string configJson = System.IO.File.ReadAllText("config.cfg");
+        JSONObject json = new JSONObject(configJson);
+        json.GetField(out useFolder, "useFolder", false);
+        print("got useFolder: " + useFolder);
+        if (useFolder)
+        {
+            string path;
+            json.GetField(out path, "folder", null);
+            print("got folder: " + path);
+            WebList webList = listView.GetComponent<WebList>();
+            listLocation = path;
+            webList.SetupFolder(path);
+        }
+        else
+        {
+            string dlLocation;
+            json.GetField(out listLocation, "listLocation","");
+            json.GetField(out dlLocation, "dlLocation", "");
+            print("got listLocation: " + listLocation);
+            print("got dlLocation: " + dlLocation);
+
+            WebList webList = listView.GetComponent<WebList>();
+            webList.Setup(listLocation);
+            WEB_DL_LOCATION = dlLocation;
+        }
 	}
 
     // Update is called once per frame
@@ -137,7 +160,14 @@ public class ListSelectionControlManager : MonoBehaviour {
     {
         print("Selected: " + fileToGet);
         downloading = true;
-        StartCoroutine(DownloadFile(fileToGet, data => { this.pointData = data; }));
+        if (useFolder)
+        {
+            StartCoroutine(ReadFile(fileToGet, data => { this.pointData = data; }));
+        }
+        else
+        {
+            StartCoroutine(DownloadFile(fileToGet, data => { this.pointData = data; }));
+        }
         choosing = false;
         listView.SetActive(false);
         infoTextMesh.text = "DOWNLOADING...";
@@ -170,8 +200,15 @@ public class ListSelectionControlManager : MonoBehaviour {
             }
         }
         WebList webList = listView.GetComponent<WebList>();
-        
-        webList.Setup(webRootLocation);
+
+        if (useFolder)
+        {
+            webList.SetupFolder(listLocation);
+        }
+        else
+        {
+            webList.Setup(listLocation);
+        }
     }
 
     private void TriggerDelegate(object sender, ClickedEventArgs e)
@@ -195,6 +232,23 @@ public class ListSelectionControlManager : MonoBehaviour {
         }
         progress = 1.0f;
         string text = www.text;
+        m_WebLock = false;
+        if (downloading)
+        {
+            updatedData = true;
+            result(CSVReader.ReadPointsFromString(text));
+            downloading = false;
+        }
+    }
+
+    IEnumerator ReadFile(string fileName, DataResult result)
+    {
+        if (m_WebLock)
+            yield break;
+        m_WebLock = true;
+        
+        progress = 1.0f;
+        string text = System.IO.File.ReadAllText(System.IO.Path.Combine(listLocation,fileName));
         m_WebLock = false;
         if (downloading)
         {
