@@ -58,7 +58,7 @@ public class ListSelectionControlManager : MonoBehaviour {
         webRootLocation = System.IO.File.ReadAllText("config.cfg");
         WebList webList = listView.GetComponent<WebList>();
         webList.Setup(webRootLocation);
-        WEB_DL_LOCATION = webRootLocation + "/file_manager/download_file/csv/";
+        WEB_DL_LOCATION = webRootLocation + "/file_manager/download_file/";
 	}
 
     // Update is called once per frame
@@ -66,22 +66,35 @@ public class ListSelectionControlManager : MonoBehaviour {
     {
         if (choosing)
         {
-            if (triggerPressed)
+            if (triggerPressed || Input.GetKeyDown("space"))
             {
                 if (selectedListObj != null)
                 {
-                    Component[] components = selectedListObj.GetComponents<Component>();
                     ListView.JSONItem selectedObjectJson = selectedListObj.GetComponent<ListView.JSONItem>();
                     string fileToGet = selectedObjectJson.data.text;
-                    print("Selected: " + fileToGet);
-                    downloading = true;
-                    StartCoroutine(DownloadFile(fileToGet, data => { this.pointData = data; }));
-                    choosing = false;
-                    listView.SetActive(false);
-                    infoTextMesh.text = "DOWNLOADING...";
+                    click(fileToGet);
                 }
+            }else if (Input.GetKeyDown("2"))
+            {
+                WebList webList = listView.GetComponent<WebList>();
+                string file = webList.data[1].text;
+                click(file);
             }
-        }else if (downloading)
+            else if (Input.GetKeyDown("3"))
+            {
+                WebList webList = listView.GetComponent<WebList>();
+                string file = webList.data[2].text;
+                click(file);
+            }
+            else if (Input.GetKeyDown("4"))
+            {
+                WebList webList = listView.GetComponent<WebList>();
+                string file = webList.data[3].text;
+                click(file);
+            }
+
+        }
+        else if (downloading)
         {
             infoTextMesh.text = "DOWNLOADING..." + 100.0f*progress+"%";
         }else if (updatedData)
@@ -119,6 +132,16 @@ public class ListSelectionControlManager : MonoBehaviour {
         }
         triggerPressed = false;
 	}
+
+    private void click(string fileToGet)
+    {
+        print("Selected: " + fileToGet);
+        downloading = true;
+        StartCoroutine(DownloadFile(fileToGet, data => { this.pointData = data; }));
+        choosing = false;
+        listView.SetActive(false);
+        infoTextMesh.text = "DOWNLOADING...";
+    }
 
     private void PointerInDelegate(object sender, PointerEventArgs e)
     {
